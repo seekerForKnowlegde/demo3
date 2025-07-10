@@ -155,7 +155,7 @@ def run_kmeans_and_return_json(prompt):
     #     """
 
 
-    # client = OpenAI(api_key="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")  # replace with your actual key
+    # client = OpenAI(api_key="")  # replace with your actual key
     # try:
     #     response = client.models.list()
     #     print("✅ Connection successful. You can access the API.")
