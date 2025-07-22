@@ -138,49 +138,52 @@ def apply_filters(df, filters):
     
 # Load your dataset
 def run_kmeans_and_return_json(prompt):
-    df = pd.read_csv("C:/Users/Anmol Rana/BlueChip/data2.csv")  # replace with your actual file
+    df = pd.read_csv("./data2.csv")  # replace with your actual file
+    api_key=os.getenv("OPEN_API_KEY")
 
 
 
 
-
+    print("api_key---->",api_key)
+    if api_key:
     # ---------------------------------------------chatgpt-code---------------------------------------------
-    # user_prompt = f"""
-    # Convert the following SENTENCE into a structured Python dictionary of filters like  
-    # 'Class': {{'op': '==', 'value': 'Energy'}},
-    #         'Insured Country': {{'op': 'in', 'value': ['India', 'US']}},
-    #         'Underwriting Year': {{'op': '>', 'value': 2000}}
-    #     if value is single "op" should be "==" , if value is multiple or array it should be "in" and no explainataion.
-    #     SENTENCE:=> '{prompt}'
-    #     """
+        print("-----------------------------open api called------------------------------------------") 
+        user_prompt = f"""
+        Convert the following SENTENCE into a structured Python dictionary of filters like  
+        'Class': {{'op': '==', 'value': 'Energy'}},
+                'Insured Country': {{'op': 'in', 'value': ['India', 'US']}},
+                'Underwriting Year': {{'op': '>', 'value': 2000}}
+            if value is single "op" should be "==" , if value is multiple or array it should be "in" and no explainataion.
+            SENTENCE:=> '{prompt}'
+            """
 
 
-    # client = OpenAI(api_key="")  # replace with your actual key
-    # try:
-    #     response = client.models.list()
-    #     print("✅ Connection successful. You can access the API.")
-    # except Exception as e:
-    #     print("❌ API call failed:", e)
-        
+        client = OpenAI(api_key=api_key)  # replace with your actual key
+        try:
+            response = client.models.list()
+            print("✅ Connection successful. You can access the API.")
+        except Exception as e:
+            print("❌ API call failed:", e)
+            
 
-    # # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
-    # def ask_gpt():
-    #     return client.chat.completions.create(
-    #         model="gpt-3.5-turbo",
-    #         messages=[{"role": "user", "content": user_prompt}],
-    #         temperature=0
-    #     )
+        # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+        def ask_gpt():
+            return client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": user_prompt}],
+                temperature=0
+            )
 
-    # response = client.chat.completions.create(
-    #         model="gpt-3.5-turbo",
-    #         messages=[{"role": "user", "content": user_prompt}],
-    #         temperature=0
-    #     )
-    # print(response.choices[0].message.content)
-    # filters_raw=response.choices[0].message.content
-    # filters=fuzzy_match_filter_keys(ast.literal_eval(filters_raw),df.columns.tolist())
-    # print("filters------>",filters)
-    # df=apply_filters(df,filters)
+        response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": user_prompt}],
+                temperature=0
+            )
+        print("filters from openai---->",response.choices[0].message.content)
+        filters_raw=response.choices[0].message.content
+        filters=fuzzy_match_filter_keys(ast.literal_eval(filters_raw),df.columns.tolist())
+        print("filters from fuzzy matching------>",filters)
+        df=apply_filters(df,filters)
 
 #-----------------------------------------------------------------------------------------------------------
     
@@ -197,10 +200,12 @@ def run_kmeans_and_return_json(prompt):
 
     # -----------------------------------------------demo------------------------------------------
     # filters_raw="{'New Renewal': {'op': '==', 'value': 'Renewal'} }"
-    filters_raw="{'Gross Premium':{'op': '>', 'value': 200000}}"
-    filters=fuzzy_match_filter_keys(ast.literal_eval(filters_raw),df.columns.tolist())
-    
-    df=apply_filters(df,filters)
+    else:
+        print("-----------------------------default called------------------------------------------") 
+        filters_raw="{'Gross Premium':{'op': '>', 'value': 200000}}"
+        filters=fuzzy_match_filter_keys(ast.literal_eval(filters_raw),df.columns.tolist())
+        
+        df=apply_filters(df,filters)
     #------------------------------------------------------------------------------------------
 
 
@@ -208,8 +213,8 @@ def run_kmeans_and_return_json(prompt):
         "country_stats": df['Insured Country'].value_counts().to_dict(),
         "unique_countries": df['Insured Country'].nunique(),
         "total_policy_volume": len(df),
-        "total_premium": float((df['Gross Premium'] * df['OurShare']).sum()),
-        "total_loss": float(df['Paid'].sum())
+        "total_premium": float((df['Gross Premium'] ).sum()),
+        "total_loss": float((df['Paid']+df['Outstanding']).sum())
     }
 
     
@@ -277,7 +282,7 @@ def run_kmeans_and_return_json(prompt):
 
             # Show the output
     from IPython.display import display
-    display(cluster_profiles)
+    # display(cluster_profiles)
    
 
     cluster_summary = {}
@@ -293,9 +298,9 @@ def run_kmeans_and_return_json(prompt):
         # "min_premium": float(min(gross_premium)),
         # "max_premium": float(max(gross_premium)),
         # "percentile_90": float(np.percentile(gross_premium, 90)),
-            "loss_ratio": float(group['Paid'].sum()) / max((group['Gross Premium'] * group['OurShare']).sum(), 1)
+            "loss_ratio": float((group['Paid']+group['Outstanding']).sum()) / max((group['Gross Premium']).sum(), 1)*100
         }
-    print(cluster_summary)
+    # print(cluster_summary)
 
     # cluster_data = {}
     for cluster_id, group in df_filtered.groupby('Cluster'):
