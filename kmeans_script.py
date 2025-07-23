@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score,silhouette_samples
 from sklearn.feature_selection import VarianceThreshold
 # import matplotlib.pyplot as plt
+import logging 
 from tqdm import tqdm
 # global progress_status
 from sklearn.decomposition import PCA
@@ -17,8 +18,10 @@ import os
 import ast
 import difflib
 from  difflib import get_close_matches
-from cluster import cluster_data,cluster_stats,cluster_top_underwriters
+from cluster import cluster_data,cluster_stats,cluster_top_underwriters,clusters_top_10_policies
 
+
+logging.basicConfig(level=logging.INFO)
 def fuzzy_match_filter_keys(filters, df_columns, threshold=0.6):
     matched_filters = {}
 
@@ -140,6 +143,7 @@ def apply_filters(df, filters):
 def run_kmeans_and_return_json(prompt):
     df = pd.read_csv("./data2.csv")  # replace with your actual file
     api_key=os.getenv("OPEN_API_KEY")
+   
 
 
 
@@ -202,7 +206,7 @@ def run_kmeans_and_return_json(prompt):
     # filters_raw="{'New Renewal': {'op': '==', 'value': 'Renewal'} }"
     else:
         print("-----------------------------default called------------------------------------------") 
-        filters_raw="{'Gross Premium':{'op': '>', 'value': 200000}}"
+        filters_raw="{'Insured Country':{'op': 'in', 'value': ['India','USA']}}"
         filters=fuzzy_match_filter_keys(ast.literal_eval(filters_raw),df.columns.tolist())
         
         df=apply_filters(df,filters)
@@ -281,18 +285,38 @@ def run_kmeans_and_return_json(prompt):
     cluster_profiles = cluster_profiles.reset_index()
 
             # Show the output
-    from IPython.display import display
-    # display(cluster_profiles)
+    # from IPython.display import display
+    # display(df_filtered.columns)
    
 
     cluster_summary = {}
 
-    for cluster_id, group in df_filtered.groupby('Cluster'):
+    # logging.info(df_filtered.columns)
+ 
+    clusters_top_10_policies.clear()
+    for cluster_id,group in df_filtered.groupby('Cluster'):
+        # logging.info("Columns:", group.columns.tolist())
+        group['Inception Date'] = pd.to_datetime(group['Inception Date'], format='mixed', dayfirst=True, errors='coerce')
+
+        
+        group['Inception_Year']=group['Inception Date'].dt.year
+        print(group['Inception_Year'])
+        top_10=group.sort_values(by="Gross Premium",ascending=False).head(10)
+        clusters_top_10_policies[cluster_id]=top_10
+        yearly_summary=(group.groupby('Inception_Year').agg(yearly_premium=('Gross Premium','sum'),yearly_count=('PolicyNo','count')).reset_index())
+        yearly_breakdown={str(row['Inception_Year']):{
+            'premium':row['yearly_premium'],
+            'count':row['yearly_count']
+        }
+        for _,row in yearly_summary.iterrows()
+        }
+
         gross_premium=group['Gross Premium'].tolist()
         cluster_summary[int(cluster_id)] = {
             "policy_volume": len(group),
             "total_premium": float((group['Gross Premium'] * group['OurShare']).sum()),
             "total_loss": float(group['Paid'].sum()),
+            "yearly_breakdown":yearly_breakdown,
         #     "mean_premium": float(group['Gross Premium'].mean()),
         # "median_premium": float(group['Gross Premium'].median()),
         # "min_premium": float(min(gross_premium)),
